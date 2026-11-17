@@ -12,6 +12,18 @@
                 "color = \"#585114\" label = \"{ {adress = %zu} | {data = %s} | {left = %zu} | {right = %zu} | {parent = %zu}}\"];\n",       \
                 (size_t)node % 10000, node_fillcolor, (size_t)node % 10000,  node -> data,                                                       \
                 (size_t)node -> left_node % 10000, (size_t)node -> right_node % 10000, (size_t)node -> parent_node % 10000);    
+ 
+
+#define FPRINTF_HTML_BORDER fprintf(dump_info.fp_html,      "<hr style=\""\
+                                                            "border: none;"\
+                                                            "height: 5px;"\
+                                                            "background-color: #34495e;"\
+                                                            "\">\n");
+
+#define FPRINTF_HTML_HEAD   fprintf(dump_info.fp_html, "<h2 style = \"font-family: Georgia, serif;" \
+                                                       "font-size: 42px;"\
+                                                       "color: #34495e;\">"\
+                                                       "Dump #%d</h2>\n", dump_info.number_of_dumps);
 
 #define GRAPHVIZ_MODE
 
@@ -52,9 +64,9 @@ struct TNode_t {
 
 struct parcer_t {
 
-    char symbol                      = 0; 
-    char* cur_str                    = NULL;
-    int len_str                      = 0;
+    char     symbol                  = 0; 
+    char*    cur_str                 = NULL;
+    int      len_str                 = 0;
 
     TNode_t* cur_node                = NULL;
 
@@ -64,7 +76,7 @@ struct graph_dump_t {
     
     int number_of_dumps = 1;
 
-    FILE* fp_html                                            = NULL;
+    FILE* fp_html                                         = NULL;
     char folder_name[MAXLEN_GRAPHVIZ_FOLDER_NAME]         = "";
     char html_file_dump_name[MAXLEN_HTML_DUMP_FILE_NAME]  = "";
 };
@@ -73,15 +85,15 @@ TNode_t*    node_create                 (TNode_t* parent, const bool parent_side
 void        create_links                (TNode_t* cur_node, TNode_t* parent, const bool parent_side);
 void        delete_node                 (TNode_t* cur_node);
   
-void        print_tree_preorder_in_file (const TNode_t* main_node, FILE* fp_out);
+void        print_tree_preorder_in_file (const TNode_t* main_node, const TNode_t* last_add_node, FILE* fp_out);
   
 TNode_t*    tree_read_from_file         (const char* filename);
 TNode_t*    tree_read_preorder          (char* buffer, int* current_buffer_IP, TNode_t* current_parent, bool side);
 
 #ifdef GRAPHVIZ_MODE
-void        create_element_dump         (const TNode_t* node, FILE* debug_out);
-void        list_dump_html              (const TNode_t* main_node);
-void        list_graph_dump             (const TNode_t* main_node, char* name_graphviz_file_out, graph_dump_t dump_info);
+void        create_element_dump         (const TNode_t* node, const TNode_t* last_add_node, FILE* debug_out);
+void        list_dump_html              (const TNode_t* main_node, const TNode_t* last_add_node);
+void        list_graph_dump             (const TNode_t* main_node, const TNode_t* last_add_node, char* name_graphviz_file_out, graph_dump_t dump_info);
 void        print_links_in_dump         (FILE* debug_out, const TNode_t* node, 
                                         const char* color_right, const char* color_failure);
 #endif
@@ -135,23 +147,23 @@ void delete_node(TNode_t* cur_node) {
 }
 
 
-void print_tree_preorder_in_file(const TNode_t* main_node, FILE* fp_out) {
+void print_tree_preorder_in_file(const TNode_t* main_node, const TNode_t* last_add_node, FILE* fp_out) {
 
     assert(main_node);
 
     fprintf(fp_out, "( ");
     fprintf(fp_out, "\"%s\" ", main_node -> data);
 
-    if (main_node -> left_node)      print_tree_preorder_in_file(main_node -> left_node, fp_out);
+    if (main_node -> left_node)      print_tree_preorder_in_file(main_node -> left_node, last_add_node, fp_out);
     else                             fprintf(fp_out, "nil ");
 
-    if (main_node -> right_node)     print_tree_preorder_in_file(main_node -> right_node, fp_out);
+    if (main_node -> right_node)     print_tree_preorder_in_file(main_node -> right_node, last_add_node, fp_out);
     else                             fprintf(fp_out, "nil ");
 
     fprintf(fp_out, ") ");
 
     ON_GRPV(if (main_node -> parent_node == NULL) {
-        list_dump_html(main_node);
+        list_dump_html(main_node, last_add_node);
     })
 }
 
@@ -180,7 +192,7 @@ TNode_t* tree_read_preorder(char* buffer, int* current_buffer_IP, TNode_t* curre
     SSCANF_IN_READ_PREORDER(" %c%n", &node_parcer_info.symbol, &node_parcer_info.len_str)
 
     if (node_parcer_info.symbol == 'n') {
-        SSCANF_IN_READ_PREORDER("%s%n", node_parcer_info.cur_str, &node_parcer_info.len_str)
+        SSCANF_IN_READ_PREORDER("%2s%n", node_parcer_info.cur_str, &node_parcer_info.len_str)
         if (strcmp(node_parcer_info.cur_str, "il") == 0) { 
             return NULL;
         }
@@ -206,7 +218,7 @@ TNode_t* tree_read_preorder(char* buffer, int* current_buffer_IP, TNode_t* curre
 
 #ifdef GRAPHVIZ_MODE
 
-    void list_graph_dump(const TNode_t* main_node, char* name_graphviz_file_out, graph_dump_t dump_info) { 
+    void list_graph_dump(const TNode_t* main_node, const TNode_t* last_add_node, char* name_graphviz_file_out, graph_dump_t dump_info) { 
 
         snprintf(name_graphviz_file_out, FILE_PNG_GRAPHVIZ_NAME, "%s/log_%d.dot", dump_info.folder_name, dump_info.number_of_dumps);
         FILE* debug_out = fopen(name_graphviz_file_out, "w");
@@ -219,7 +231,7 @@ TNode_t* tree_read_preorder(char* buffer, int* current_buffer_IP, TNode_t* curre
                             "splines = true;\n");
             
         
-        create_element_dump(main_node, debug_out);
+        create_element_dump(main_node, last_add_node, debug_out);
         fprintf(debug_out, "}\n");
 
         fclose(debug_out);
@@ -233,7 +245,7 @@ TNode_t* tree_read_preorder(char* buffer, int* current_buffer_IP, TNode_t* curre
         strcpy(extension, ".png");
     }
 
-    void list_dump_html(const TNode_t* main_node) {
+    void list_dump_html(const TNode_t* main_node, const TNode_t* last_add_node) {
 
         static graph_dump_t dump_info = {};
         if (dump_info.number_of_dumps == 1) {
@@ -248,53 +260,57 @@ TNode_t* tree_read_preorder(char* buffer, int* current_buffer_IP, TNode_t* curre
             fprintf(dump_info.fp_html,
             "<!DOCTYPE html>\n"
                     "<html>\n\n"
+                    "<head>\n"
                     "\t<meta charset=\"UTF-8\">\n"
                     "\t<title>List dump</title>\n"
-                    "</head>\n"
-                    "<body>\n"
-                    "<div style=\"display: flex; flex-direction: column; gap: 30px;\">\n");
+                    "</head>\n\n"
+                    "<body>\n");
             
+            fclose(dump_info.fp_html);
         }
 
         dump_info.fp_html = fopen(dump_info.html_file_dump_name, "a");
-        fprintf(dump_info.fp_html, "<h2 style = \"font-family: Georgia, serif;"
-                                                "font-size: 42px;"
-                                                "color: #34495e;\">"
-                                                "Dump #%d</h2>\n", dump_info.number_of_dumps);
+        FPRINTF_HTML_BORDER
+        FPRINTF_HTML_HEAD
 
         // Generate PNG
         char name_graphviz_file[FILE_PNG_GRAPHVIZ_NAME];
-        list_graph_dump(main_node, name_graphviz_file, dump_info);
+        list_graph_dump(main_node, last_add_node, name_graphviz_file, dump_info);
 
 
         // Two blocks: dump and image
         fprintf(dump_info.fp_html,
             "<div style=\"display: flex; flex-direction: row; "
-            "gap: 40px; align-items: flex-start; margin-bottom: 30px;\">\n"
+                    "gap: 40px; align-items: flex-start; margin-bottom: 30px;\">\n"
         );
         // IMAGE
         char image_html_str[MAXLEN_STR_HTML_IMAGE_INSERT] = "";
         char* image_name = strrchr(name_graphviz_file, '/') + 1;
         snprintf(image_html_str, MAXLEN_STR_HTML_IMAGE_INSERT, "<img src=\"%s\" width=\"1250\">\n", image_name);
         fprintf(dump_info.fp_html, "%s", image_html_str);
-        fprintf(dump_info.fp_html, "%s", image_html_str);
+
         // HTML ending
         fprintf(dump_info.fp_html,"</div>\n");
+        FPRINTF_HTML_BORDER
+
         fclose(dump_info.fp_html);
         dump_info.number_of_dumps++; 
     }
 
-    void create_element_dump(const TNode_t* node, FILE* debug_out) {
+    void create_element_dump(const TNode_t* node, const TNode_t* last_add_node, FILE* debug_out) {
 
-        if (strchr(node -> data, '?') != NULL) {
+        if (node == last_add_node){
+            PRINT_DUMP_NODE_WITH_CHARACTERISTICS("#09dd77")
+        }
+        else if (strchr(node -> data, '?') != NULL) {
             PRINT_DUMP_NODE_WITH_CHARACTERISTICS("#9ba344")
         }
         else {
             PRINT_DUMP_NODE_WITH_CHARACTERISTICS("#f2f3e8");
         }
 
-        if (node -> left_node)             create_element_dump(node -> left_node, debug_out);
-        if (node -> right_node)            create_element_dump(node -> right_node, debug_out);
+        if (node -> left_node)             create_element_dump(node -> left_node,  last_add_node, debug_out);
+        if (node -> right_node)            create_element_dump(node -> right_node, last_add_node, debug_out);
 
         if (node -> left_node && node -> right_node) {
             fprintf(debug_out, "{rank = same; elem%zu; elem%zu};", 

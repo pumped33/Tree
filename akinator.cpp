@@ -14,18 +14,20 @@
 const int MAXLEN_ANSWER    = 5;
 const int MAXLEN_ADJECTIVE = 51;
 const int MAXLEN_CHARACTER = 50;
+const int MAXLEN_MODE      = 21;
 
 struct akinator_info_t {
-    const char* filename =  "";
-    FILE*    fp_akin_out = NULL;
-    TNode_t* main_node   = NULL;
+    const char* filename        =  "";
+    FILE*       fp_akin_out     = NULL;
+    TNode_t*    main_node       = NULL;
+    TNode_t*    last_add_node   = NULL;
 
 };
 
 struct new_node_t {
     char* new_character      = NULL;
     char* new_characteristic = NULL;
-    char* ptr_last_symbol  = NULL;
+    char* ptr_last_symbol    = NULL;
 };
 
 
@@ -36,16 +38,16 @@ enum akin_answers_t {
 };
 
 #define GREEN  "\033[32m"
-#define BLUE    "\033[34m"
+#define BLUE   "\033[34m"
 #define RESET  "\033[37m"
-
-#define USER_ANSWER_TO_CONTINUE(question, what_if_yes)  printf("%s\n", question);                                    \
+ 
+#define USER_ANSWER_TO_CONTINUE(question)  printf("%s\n", question);                                                 \
                                                         scanf(" %4[^\n]", answer_quest);                              \
                                                                                                                        \
-                                                        if (strcmp("YES", answer_quest) == 0)    what_if_yes;           \
-                                                        else                                     ANSWER_NO;      
+                                                        if (strcmp("YES", answer_quest) == 0)    return ANSWER_YES;            \
+                                                        else                                     return ANSWER_NO;      
 
-// #define DEFINATION_MODE  
+#define DEFINATION_MODE  
 
 #ifdef DEFINATION_MODE
     #define ON_DFNT(...) __VA_ARGS__
@@ -53,7 +55,7 @@ enum akin_answers_t {
     #define ON_DFNT(...) 
 #endif
 
-// #define COMPARE_MODE  
+#define COMPARE_MODE  
 
 #ifdef COMPARE_MODE
     #define ON_CMPR(...) __VA_ARGS__
@@ -61,7 +63,7 @@ enum akin_answers_t {
     #define ON_CMPR(...) 
 #endif
 
-// #define SOUND_MODE  
+#define SOUND_MODE  
 
 #ifdef SOUND_MODE
     #define ON_SND(...) __VA_ARGS__
@@ -112,14 +114,35 @@ akin_answers_t akinator_main(const char* filename_write_preorder) {
     akinator_info_t akinator_info = {};
     akinator_info_init(&akinator_info, filename_write_preorder);
 
-    ON_DFNT(while(write_definations_of_words_in_console(&akinator_info) == ANSWER_YES)
-                ;)
+    char mode[MAXLEN_MODE]           = "";
+    char answer_quest[MAXLEN_ANSWER] = "";
 
-    ON_CMPR(while(write_compares_in_console(&akinator_info) == ANSWER_YES)
-                ;)
 
-    akinator_iter(&akinator_info, akinator_info.main_node, LEFT_SIDE);
-    return ANSWER_YES;
+    do {
+        printf("Choose mode please\n");
+        scanf("%20s", mode);
+
+        if (strcmp("AKINATOR", mode) == 0) {
+            while (akinator_iter(&akinator_info, akinator_info.main_node, LEFT_SIDE) == ANSWER_YES)
+                ;
+        }
+        
+        ON_DFNT(else if (strcmp("DEFINE", mode) == 0) {
+                    while (write_definations_of_words_in_console(&akinator_info) == ANSWER_YES)
+                        ;
+        })
+        ON_CMPR(else if (strcmp("COMPARE", mode) == 0) {
+                    while (write_compares_in_console(&akinator_info) == ANSWER_YES)
+                        ;
+        })
+
+        else {
+            printf(BLUE "I don't know this mode((, repeat plase\n" RESET);
+        }
+
+    } while(true);
+
+    return ANSWER_NO;
 }
 
 void save_tree_in_file(akinator_info_t* akinator_info) {
@@ -127,10 +150,10 @@ void save_tree_in_file(akinator_info_t* akinator_info) {
     assert(akinator_info);
 
     akinator_info -> fp_akin_out = fopen(akinator_info -> filename, "w");
-    print_tree_preorder_in_file(akinator_info -> main_node, akinator_info -> fp_akin_out);
+    print_tree_preorder_in_file(akinator_info -> main_node, akinator_info -> last_add_node, akinator_info -> fp_akin_out);
     fclose(akinator_info -> fp_akin_out);
 }
-
+ 
 void akinator_info_init(akinator_info_t* akinator_info, const char* filename_write_preorder) {
 
     assert(akinator_info);
@@ -152,7 +175,6 @@ akin_answers_t akinator_iter(akinator_info_t* akinator_info, TNode_t* cur_node, 
         if (strcmp(answer_quest, "YES") == 0) {
             if (cur_node -> left_node == NULL && cur_node -> right_node == NULL) {
                 printf(GREEN "Your character is %s. UFFF BITCH\n" RESET, cur_node -> data);
-                return ANSWER_YES;
             }
             else 
                 akinator_iter(akinator_info, cur_node -> left_node, LEFT_SIDE);
@@ -161,7 +183,6 @@ akin_answers_t akinator_iter(akinator_info_t* akinator_info, TNode_t* cur_node, 
         else {
             if (cur_node -> left_node == NULL && cur_node -> right_node == NULL) {
                 akinator_add_new_node(akinator_info, cur_node -> parent_node, parent_side);
-                akinator_iter(akinator_info, akinator_info -> main_node, LEFT_SIDE);
             }
             else 
                 akinator_iter(akinator_info, cur_node -> right_node, RIGHT_SIDE);
@@ -169,6 +190,8 @@ akin_answers_t akinator_iter(akinator_info_t* akinator_info, TNode_t* cur_node, 
     }
     else 
         printf("INCORRECT SENTENCE!\n");
+
+    USER_ANSWER_TO_CONTINUE("Do you want to continue?\n");
 
     return ANSWER_ERROR;
 }
@@ -184,7 +207,7 @@ akin_answers_t akinator_add_new_node(akinator_info_t* akinator_info, TNode_t* pa
 
     TNode_t* old_node = (parent_side == LEFT_SIDE) ? parent_node -> left_node : parent_node -> right_node;
     TNode_t* new_node =  node_create(parent_node, parent_side, new_node_info.new_characteristic);
-    node_create(new_node, LEFT_SIDE,  new_node_info.new_character);
+    akinator_info -> last_add_node = node_create(new_node, LEFT_SIDE,  new_node_info.new_character);
     node_create(new_node, RIGHT_SIDE,  old_node -> data);
 
     save_tree_in_file(akinator_info);
@@ -235,11 +258,7 @@ ON_DFNT(
 
         recurtion_func_for_definations(etalon_node, NULL);
 
-        printf("Do you want to continue?\n");
-        scanf(" %4[^\n]", answer_quest);
-
-        if (strcmp("YES", answer_quest) == 0)                   return ANSWER_YES;
-        else                                                               return ANSWER_ERROR;
+        USER_ANSWER_TO_CONTINUE("Do you want to continue?");
     }
 
     void recurtion_func_for_definations(TNode_t* cur_node, TNode_t* child_node) {
@@ -325,7 +344,6 @@ ON_DFNT(
 ON_CMPR(    
     
     akin_answers_t write_compares_in_console(akinator_info_t* akinator_info) {
-
     
         char     character_to_identify[MAXLEN_CHARACTER] = "";
         TNode_t* etalon_node1                            = NULL;
@@ -343,17 +361,13 @@ ON_CMPR(
 
         recurtion_func_for_comparing(etalon_node1, etalon_node2, NULL, NULL, etalon_node1 -> data, etalon_node2 -> data);
 
-        printf("Do you want to continue?\n");
-        scanf(" %4[^\n]", answer_quest);
-
-        if (strcmp("YES", answer_quest) == 0)        return ANSWER_YES;
-        else                                                    return ANSWER_NO;
+        USER_ANSWER_TO_CONTINUE("Do you want to continue?");
     }
 
     void recurtion_func_for_comparing(TNode_t* cur_node1, TNode_t* cur_node2, TNode_t* child_node1,  TNode_t* child_node2, const char* character1, const char* character2) {
 
             if (cur_node1 == NULL || cur_node2 == NULL) {
-                printf("\n\n");
+                printf("\n");
                 return;
             }
 
@@ -381,9 +395,9 @@ ON_CMPR(
            
             write_characteristic_depend_on_side(cur_node2, child_node2);
 
-            printf("; ");
+            printf(";\n");
 
-            recurtion_func_for_comparing(cur_node1 -> parent_node, cur_node2 -> parent_node, cur_node2 -> parent_node, cur_node1, character1, character2);
+            recurtion_func_for_comparing(cur_node1 -> parent_node, cur_node2 -> parent_node, cur_node1, cur_node2, character1, character2);
 
             return;
     })
@@ -408,7 +422,7 @@ ON_SND(void say(const char* text) {
     -1,
     wide_text,
     size
-);
+    );
 
     ISpVoice* voice = NULL;
     HRESULT result = CoInitialize(NULL);
@@ -418,8 +432,9 @@ ON_SND(void say(const char* text) {
     }
 
     CoCreateInstance(CLSID_SpVoice, NULL, CLSCTX_ALL, IID_ISpVoice, (void**)&voice);
+    voice -> SetRate(5);
     voice -> Speak(wide_text, SPF_DEFAULT, NULL);
     
     voice -> Release();
     CoUninitialize();
-})
+    })
